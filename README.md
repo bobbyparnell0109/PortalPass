@@ -3,6 +3,11 @@
 A next-generation school management platform — the vibrant, fast, personal
 replacement for grey utilities like StudentApp and Bromcom.
 
+**🌐 Live app: https://bobbyparnell0109.github.io/PortalPass/**
+
+Every push to `main` or the development branch redeploys automatically via
+GitHub Actions (`.github/workflows/deploy.yml` → `gh-pages` branch).
+
 Three experiences, one codebase:
 
 | Portal | Route | Who | Highlights |
