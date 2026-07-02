@@ -57,7 +57,8 @@ export default function Landing() {
           ))}
         </div>
         <p className="mt-8 text-center text-sm text-white/60">
-          Demo mode — student PIN is 12345, any email works for parent/admin
+          Live demo backed by Supabase — student PIN 12345 · parent@portalpass.demo /
+          admin@springwood.sch.uk with password PortalPass-Demo-2026
         </p>
       </div>
     </div>

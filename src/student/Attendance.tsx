@@ -1,11 +1,14 @@
 import { Card, Badge } from '@/components/ui'
 import { cn } from '@/lib/utils'
-import { attendance, currentStudent } from '@/lib/mockData'
+import { fetchAttendance, fetchMyStudent, useQuery } from '@/lib/api'
+import { attendance as mockAttendance, currentStudent } from '@/lib/mockData'
 
 export default function Attendance() {
+  const { data: attendance } = useQuery(fetchAttendance, mockAttendance)
+  const { data: me } = useQuery(fetchMyStudent, currentStudent)
   const lates = attendance.filter((a) => a.status === 'late')
   const absences = attendance.filter((a) => a.status === 'absent')
-  const pct = currentStudent.attendancePct
+  const pct = me.attendancePct
   const good = pct >= 95
 
   return (

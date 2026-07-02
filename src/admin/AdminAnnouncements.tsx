@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Megaphone, Pin, Send } from 'lucide-react'
 import { Badge, Button, Card, Input } from '@/components/ui'
+import { createAnnouncement, fetchAnnouncements } from '@/lib/api'
 import { announcements as seed } from '@/lib/mockData'
 import type { Announcement } from '@/lib/types'
 
@@ -11,10 +12,20 @@ export default function AdminAnnouncements() {
   const [category, setCategory] = useState<Announcement['category']>('events')
   const [audience, setAudience] = useState('Whole school')
   const [pinned, setPinned] = useState(false)
+  const [publishing, setPublishing] = useState(false)
 
-  const publish = (e: FormEvent) => {
+  useEffect(() => {
+    let active = true
+    fetchAnnouncements().then((a) => active && setList(a))
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const publish = async (e: FormEvent) => {
     e.preventDefault()
-    if (!title.trim() || !body.trim()) return
+    if (!title.trim() || !body.trim() || publishing) return
+    setPublishing(true)
     const a: Announcement = {
       id: `a-${Date.now()}`,
       title: title.trim(),
@@ -25,6 +36,8 @@ export default function AdminAnnouncements() {
       createdAt: new Date().toISOString(),
       read: false,
     }
+    await createAnnouncement(a)
+    setPublishing(false)
     setList([a, ...list])
     setTitle('')
     setBody('')
@@ -81,8 +94,8 @@ export default function AdminAnnouncements() {
               />
               <Pin className="h-3.5 w-3.5" /> Pin to top of student feed
             </label>
-            <Button type="submit" className="w-full">
-              <Send className="h-4 w-4" /> Publish now
+            <Button type="submit" className="w-full" disabled={publishing}>
+              <Send className="h-4 w-4" /> {publishing ? 'Publishing…' : 'Publish now'}
             </Button>
             <p className="text-center text-xs text-muted-foreground">
               Students and parents in the audience get a push notification

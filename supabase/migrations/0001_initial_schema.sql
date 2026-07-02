@@ -2,7 +2,6 @@
 -- Multi-tenant school management platform: one row in `schools` per school,
 -- everything else scoped by school_id with row-level security.
 
-create extension if not exists "uuid-ossp";
 create extension if not exists pgcrypto; -- for PIN hashing via crypt()
 
 -- ---------------------------------------------------------------------------
@@ -10,7 +9,7 @@ create extension if not exists pgcrypto; -- for PIN hashing via crypt()
 -- ---------------------------------------------------------------------------
 
 create table schools (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   name text not null,
   logo_url text,
   primary_color text default '#7c3aed',
@@ -85,7 +84,7 @@ create table parent_students (
 -- ---------------------------------------------------------------------------
 
 create table subjects (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   school_id uuid not null references schools (id),
   name text not null,
   color text not null default '#6366f1',
@@ -95,7 +94,7 @@ create table subjects (
 );
 
 create table rooms (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   school_id uuid not null references schools (id),
   name text not null,
   building text,
@@ -106,7 +105,7 @@ create table rooms (
 );
 
 create table lessons (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   school_id uuid not null references schools (id),
   subject_id uuid not null references subjects (id),
   teacher_id uuid not null references staff (id),
@@ -135,7 +134,7 @@ create table lesson_enrolments (
 create type attendance_status as enum ('present', 'absent', 'late');
 
 create table attendance_records (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   school_id uuid not null references schools (id),
   student_id uuid not null references students (id),
   lesson_id uuid references lessons (id), -- null = AM/PM registration
@@ -158,7 +157,7 @@ create index attendance_student_date_idx on attendance_records (student_id, date
 -- ---------------------------------------------------------------------------
 
 create table assessments (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   school_id uuid not null references schools (id),
   subject_id uuid not null references subjects (id),
   name text not null,
@@ -171,7 +170,7 @@ create table assessments (
 );
 
 create table grades (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   school_id uuid not null references schools (id),
   assessment_id uuid not null references assessments (id),
   student_id uuid not null references students (id),
@@ -187,7 +186,7 @@ create table grades (
 );
 
 create table homework (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   school_id uuid not null references schools (id),
   subject_id uuid not null references subjects (id),
   teacher_id uuid not null references staff (id),
@@ -218,7 +217,7 @@ create table homework_submissions (
 -- ---------------------------------------------------------------------------
 
 create table announcements (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   school_id uuid not null references schools (id),
   title text not null,
   body text not null,
@@ -233,7 +232,7 @@ create table announcements (
 );
 
 create table calendar_events (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   school_id uuid not null references schools (id),
   title text not null,
   description text,
@@ -246,7 +245,7 @@ create table calendar_events (
 );
 
 create table message_threads (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   school_id uuid not null references schools (id),
   subject_line text,
   created_at timestamptz not null default now(),
@@ -261,7 +260,7 @@ create table thread_participants (
 );
 
 create table messages (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   thread_id uuid not null references message_threads (id) on delete cascade,
   sender_id uuid not null references profiles (id),
   body text not null,
@@ -279,7 +278,7 @@ create index messages_thread_idx on messages (thread_id, sent_at);
 -- ---------------------------------------------------------------------------
 
 create table lunch_transactions (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   school_id uuid not null references schools (id),
   student_id uuid not null references students (id),
   amount_pence int not null, -- negative = purchase, positive = top-up/refund
@@ -294,7 +293,7 @@ create table lunch_transactions (
 create index lunch_tx_student_idx on lunch_transactions (student_id, created_at desc);
 
 create table auto_topups (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   parent_id uuid not null references profiles (id),
   student_id uuid not null references students (id),
   amount_pence int not null,
@@ -472,7 +471,7 @@ create policy audit_admin_read on activity_log for select
 -- ---------------------------------------------------------------------------
 
 create or replace function verify_pin(user_email text, pin text) returns boolean
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare h text;
 begin
   select pin_hash into h from profiles where email = user_email and role = 'student';
@@ -482,7 +481,7 @@ end;
 $$;
 
 create or replace function set_pin(pin text) returns void
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 begin
   if length(pin) < 4 or length(pin) > 6 or pin !~ '^[0-9]+$' then
     raise exception 'PIN must be 4-6 digits';

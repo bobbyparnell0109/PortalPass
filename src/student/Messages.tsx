@@ -2,11 +2,10 @@ import { useState } from 'react'
 import { ChevronLeft, Plus, Send } from 'lucide-react'
 import { Button, Card, EmptyState, Input } from '@/components/ui'
 import { cn, initials } from '@/lib/utils'
-import { messageThreads } from '@/lib/mockData'
-import type { Message, MessageThread } from '@/lib/types'
+import { useApp } from '@/lib/store'
 
 export default function Messages() {
-  const [threads, setThreads] = useState<MessageThread[]>(messageThreads)
+  const { threads, sendThreadMessage } = useApp()
   const [openId, setOpenId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
 
@@ -14,18 +13,7 @@ export default function Messages() {
 
   const send = () => {
     if (!open || !draft.trim()) return
-    const msg: Message = {
-      id: `m-${Date.now()}`,
-      threadId: open.id,
-      from: 'You',
-      fromRole: 'student',
-      body: draft.trim(),
-      sentAt: new Date().toISOString(),
-      read: true,
-    }
-    setThreads((prev) =>
-      prev.map((t) => (t.id === open.id ? { ...t, messages: [...t.messages, msg] } : t)),
-    )
+    sendThreadMessage(open.id, draft.trim())
     setDraft('')
   }
 

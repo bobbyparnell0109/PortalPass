@@ -1,10 +1,13 @@
 import { ArrowDownLeft, ArrowUpRight, QrCode } from 'lucide-react'
 import { Card, Badge } from '@/components/ui'
 import { cn, formatCurrency } from '@/lib/utils'
-import { currentStudent, transactions } from '@/lib/mockData'
+import { fetchMyStudent, fetchTransactions, useQuery } from '@/lib/api'
+import { currentStudent, transactions as mockTransactions } from '@/lib/mockData'
 
 export default function LunchAccount() {
-  const balance = currentStudent.lunchBalance
+  const { data: me } = useQuery(fetchMyStudent, currentStudent)
+  const { data: transactions } = useQuery(fetchTransactions, mockTransactions)
+  const balance = me.lunchBalance
   const low = balance < 5
   const critical = balance < 2
 

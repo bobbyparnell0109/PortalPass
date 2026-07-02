@@ -3,19 +3,28 @@ import { useNavigate } from 'react-router-dom'
 import { Users } from 'lucide-react'
 import { Button, Card, Input } from '@/components/ui'
 import { useApp } from '@/lib/store'
+import { emailLogin } from '@/lib/api'
 
 export default function ParentLogin() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
   const { login } = useApp()
   const navigate = useNavigate()
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!email || !password) return
-    // Demo auth: any credentials work. Production uses Supabase Auth
-    // (email/password + optional 2FA) with RLS scoping to linked children.
-    login('parent', email)
+    if (!email || !password || busy) return
+    setBusy(true)
+    setError('')
+    const result = await emailLogin(email, password, 'parent')
+    setBusy(false)
+    if ('error' in result) {
+      setError(result.error)
+      return
+    }
+    login(result.role, result.name)
     navigate('/parent')
   }
 
@@ -44,11 +53,15 @@ export default function ParentLogin() {
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
           />
-          <Button type="submit" className="w-full" size="lg">
-            Sign in
+          {error && <p className="text-sm font-semibold text-red-500">{error}</p>}
+          <Button type="submit" className="w-full" size="lg" disabled={busy}>
+            {busy ? 'Signing in…' : 'Sign in'}
           </Button>
         </form>
-        <button className="mt-4 w-full text-center text-sm font-semibold text-accent">
+        <p className="mt-4 text-center text-xs text-muted-foreground">
+          Demo: parent@portalpass.demo · PortalPass-Demo-2026
+        </p>
+        <button className="mt-2 w-full text-center text-sm font-semibold text-accent">
           Forgot password?
         </button>
       </Card>

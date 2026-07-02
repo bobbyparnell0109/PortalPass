@@ -2,11 +2,13 @@ import { useMemo, useState } from 'react'
 import { Download, Search, Upload, UserPlus } from 'lucide-react'
 import { Badge, Button, Card, Input } from '@/components/ui'
 import { formatCurrency } from '@/lib/utils'
-import { allStudents } from '@/lib/mockData'
+import { fetchAllStudents, useQuery } from '@/lib/api'
+import { allStudents as mockStudents } from '@/lib/mockData'
 
 export default function Students() {
   const [query, setQuery] = useState('')
   const [year, setYear] = useState<'all' | number>('all')
+  const { data: allStudents } = useQuery(fetchAllStudents, mockStudents)
 
   const years = [...new Set(allStudents.map((s) => s.yearGroup))].sort((a, b) => a - b)
 
@@ -21,7 +23,7 @@ export default function Students() {
         s.email.toLowerCase().includes(q)
       )
     })
-  }, [query, year])
+  }, [allStudents, query, year])
 
   return (
     <div className="space-y-5 animate-fade-up">

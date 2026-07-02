@@ -7,8 +7,9 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { HomeworkItem, Role } from './types'
-import { homework as seedHomework, messageThreads } from './mockData'
+import type { HomeworkItem, MessageThread, Role } from './types'
+import { homework as seedHomework, messageThreads as seedThreads } from './mockData'
+import * as api from './api'
 
 export type ThemeMode = 'light' | 'dark' | 'auto'
 export type FontSize = 'small' | 'normal' | 'large' | 'xl'
@@ -64,6 +65,8 @@ interface AppState {
   isDark: boolean
   homework: HomeworkItem[]
   toggleHomework: (id: string) => void
+  threads: MessageThread[]
+  sendThreadMessage: (threadId: string, body: string) => void
   unreadMessages: number
 }
 
@@ -96,6 +99,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     () => window.matchMedia('(prefers-color-scheme: dark)').matches,
   )
   const [homework, setHomework] = useState<HomeworkItem[]>(seedHomework)
+  const [threads, setThreads] = useState<MessageThread[]>(seedThreads)
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
@@ -103,6 +107,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     mq.addEventListener('change', onChange)
     return () => mq.removeEventListener('change', onChange)
   }, [])
+
+  // Student sessions pull live data; everything else keeps the demo set.
+  useEffect(() => {
+    if (session?.role !== 'student') return
+    let active = true
+    api.fetchHomework().then((h) => active && setHomework(h))
+    api.fetchThreads().then((t) => active && setThreads(t))
+    return () => {
+      active = false
+    }
+  }, [session?.role])
 
   const isDark =
     prefs.themeMode === 'dark' || (prefs.themeMode === 'auto' && systemDark)
@@ -129,6 +144,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     setSession(null)
     localStorage.removeItem('pp-session')
+    void api.signOut()
   }, [])
 
   const setPrefs = useCallback((p: Partial<Prefs>) => {
@@ -137,21 +153,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const toggleHomework = useCallback((id: string) => {
     setHomework((prev) =>
-      prev.map((h) =>
-        h.id === id
-          ? { ...h, status: h.status === 'completed' ? 'pending' : 'completed' }
-          : h,
-      ),
+      prev.map((h) => {
+        if (h.id !== id) return h
+        const completed = h.status !== 'completed'
+        void api.setHomeworkStatus(id, completed)
+        return { ...h, status: completed ? 'completed' : 'pending' }
+      }),
     )
   }, [])
 
-  const unreadMessages = useMemo(
-    () =>
-      messageThreads.reduce(
-        (n, t) => n + t.messages.filter((m) => !m.read).length,
-        0,
+  const sendThreadMessage = useCallback((threadId: string, body: string) => {
+    setThreads((prev) =>
+      prev.map((t) =>
+        t.id === threadId
+          ? {
+              ...t,
+              messages: [
+                ...t.messages,
+                {
+                  id: `local-${Date.now()}`,
+                  threadId,
+                  from: 'You',
+                  fromRole: 'student' as Role,
+                  body,
+                  sentAt: new Date().toISOString(),
+                  read: true,
+                },
+              ],
+            }
+          : t,
       ),
-    [],
+    )
+    void api.sendMessage(threadId, body)
+  }, [])
+
+  const unreadMessages = useMemo(
+    () => threads.reduce((n, t) => n + t.messages.filter((m) => !m.read).length, 0),
+    [threads],
   )
 
   const value = useMemo(
@@ -164,9 +202,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       isDark,
       homework,
       toggleHomework,
+      threads,
+      sendThreadMessage,
       unreadMessages,
     }),
-    [session, login, logout, prefs, setPrefs, isDark, homework, toggleHomework, unreadMessages],
+    [session, login, logout, prefs, setPrefs, isDark, homework, toggleHomework, threads, sendThreadMessage, unreadMessages],
   )
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

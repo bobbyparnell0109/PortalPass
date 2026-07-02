@@ -13,7 +13,8 @@ import {
 import { Badge, Button, Card } from '@/components/ui'
 import { cn, formatCurrency, greeting } from '@/lib/utils'
 import { useApp } from '@/lib/store'
-import { currentStudent, events, timetable } from '@/lib/mockData'
+import { fetchEvents, fetchLessons, fetchMyStudent, useQuery } from '@/lib/api'
+import { currentStudent, events as mockEvents, timetable as mockTimetable } from '@/lib/mockData'
 
 function useNow(intervalMs = 30_000) {
   const [now, setNow] = useState(() => new Date())
@@ -32,6 +33,9 @@ function minutesOfDay(hhmm: string): number {
 export default function Dashboard() {
   const now = useNow()
   const { homework, unreadMessages } = useApp()
+  const { data: me } = useQuery(fetchMyStudent, currentStudent)
+  const { data: timetable } = useQuery(fetchLessons, mockTimetable)
+  const { data: events } = useQuery(fetchEvents, mockEvents)
   const g = greeting(now)
 
   // Mon=0 … Fri=4; weekend shows Monday's lessons as "next week"
@@ -44,7 +48,7 @@ export default function Dashboard() {
       .filter((l) => l.day === weekday && minutesOfDay(l.end) > nowMins)
       .sort((a, b) => minutesOfDay(a.start) - minutesOfDay(b.start))
     return today[0] ?? null
-  }, [weekday, nowMins])
+  }, [timetable, weekday, nowMins])
 
   const inProgress = nextLesson && minutesOfDay(nextLesson.start) <= nowMins
   const minsUntil = nextLesson ? minutesOfDay(nextLesson.start) - nowMins : 0
@@ -54,7 +58,7 @@ export default function Dashboard() {
   ).length
   const pendingHomework = homework.filter((h) => h.status !== 'completed').length
 
-  const balance = currentStudent.lunchBalance
+  const balance = me.lunchBalance
   const balanceVariant = balance < 2 ? 'red' : balance < 5 ? 'amber' : 'green'
 
   return (
@@ -66,14 +70,14 @@ export default function Dashboard() {
             {g.text} {g.emoji}
           </p>
           <h1 className="text-2xl font-black tracking-tight">
-            {currentStudent.firstName}
+            {me.firstName}
           </h1>
         </div>
         <Link
           to="/app/account"
           className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent-soft text-2xl transition-transform hover:scale-105"
         >
-          {currentStudent.avatarEmoji}
+          {me.avatarEmoji}
         </Link>
       </header>
 
@@ -81,7 +85,7 @@ export default function Dashboard() {
       <Card className="flex items-center gap-3 border-0 bg-gradient-to-r from-orange-500 to-amber-400 p-4 text-white shadow-lg shadow-orange-500/20">
         <Flame className="h-8 w-8" />
         <div className="flex-1">
-          <p className="font-bold">{currentStudent.streakDays}-day streak!</p>
+          <p className="font-bold">{me.streakDays}-day streak!</p>
           <p className="text-sm text-white/80">Perfect attendance this week 🎉</p>
         </div>
       </Card>
@@ -152,7 +156,7 @@ export default function Dashboard() {
           to="/app/attendance"
           icon={<TrendingUp className="h-5 w-5" />}
           label="Attendance"
-          value={`${currentStudent.attendancePct}%`}
+          value={`${me.attendancePct}%`}
           tone="accent"
         />
       </div>

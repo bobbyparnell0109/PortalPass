@@ -9,12 +9,28 @@ import {
   Wallet,
 } from 'lucide-react'
 import { Badge, Button, Card } from '@/components/ui'
-import { allStudents, announcements, events, staff } from '@/lib/mockData'
+import {
+  fetchAllStudents,
+  fetchAnnouncements,
+  fetchEvents,
+  fetchStaff,
+  useQuery,
+} from '@/lib/api'
+import {
+  allStudents as mockStudents,
+  announcements as mockAnnouncements,
+  events as mockEvents,
+  staff as mockStaff,
+} from '@/lib/mockData'
 
 export default function AdminDashboard() {
+  const { data: allStudents } = useQuery(fetchAllStudents, mockStudents)
+  const { data: announcements } = useQuery(fetchAnnouncements, mockAnnouncements)
+  const { data: events } = useQuery(fetchEvents, mockEvents)
+  const { data: staff } = useQuery(fetchStaff, mockStaff)
   const active = allStudents.filter((s) => s.status === 'active')
   const avgAttendance =
-    Math.round((active.reduce((sum, s) => sum + s.attendancePct, 0) / active.length) * 10) / 10
+    Math.round((active.reduce((sum, s) => sum + s.attendancePct, 0) / Math.max(1, active.length)) * 10) / 10
   const lowBalances = active.filter((s) => s.lunchBalance < 5).length
   const belowThreshold = active.filter((s) => s.attendancePct < 95)
 

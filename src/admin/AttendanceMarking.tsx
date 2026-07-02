@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { Check, Save } from 'lucide-react'
 import { Badge, Button, Card, SegmentedControl } from '@/components/ui'
 import { cn } from '@/lib/utils'
-import { allStudents } from '@/lib/mockData'
+import { fetchAllStudents, markAttendance, useQuery } from '@/lib/api'
+import { allStudents as mockStudents } from '@/lib/mockData'
 
 type Mark = 'present' | 'absent' | 'late'
 
@@ -10,6 +11,8 @@ export default function AttendanceMarking() {
   const [form, setForm] = useState('10RW')
   const [marks, setMarks] = useState<Record<string, Mark>>({})
   const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const { data: allStudents } = useQuery(fetchAllStudents, mockStudents)
 
   const forms = [...new Set(allStudents.filter((s) => s.status === 'active').map((s) => s.form))].sort()
   const students = allStudents.filter((s) => s.status === 'active' && s.form === form)
@@ -24,9 +27,13 @@ export default function AttendanceMarking() {
     setSaved(false)
   }
 
-  const save = () => {
-    // Demo: production writes rows to attendance_records via Supabase and
-    // triggers parent notifications for absences.
+  const save = async () => {
+    if (saving) return
+    setSaving(true)
+    await markAttendance(
+      Object.entries(marks).map(([studentId, status]) => ({ studentId, status })),
+    )
+    setSaving(false)
     setSaved(true)
   }
 
@@ -45,8 +52,8 @@ export default function AttendanceMarking() {
           <Button variant="soft" size="sm" onClick={markAllPresent}>
             <Check className="h-4 w-4" /> All present
           </Button>
-          <Button size="sm" onClick={save} disabled={markedCount === 0}>
-            <Save className="h-4 w-4" /> Save register
+          <Button size="sm" onClick={save} disabled={markedCount === 0 || saving}>
+            <Save className="h-4 w-4" /> {saving ? 'Saving…' : 'Save register'}
           </Button>
         </div>
       </header>

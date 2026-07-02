@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Pin } from 'lucide-react'
 import { Badge, Card, SegmentedControl } from '@/components/ui'
-import { announcements } from '@/lib/mockData'
+import { fetchAnnouncements, useQuery } from '@/lib/api'
+import { announcements as mockAnnouncements } from '@/lib/mockData'
 import type { Announcement } from '@/lib/types'
 
 type Filter = 'all' | Announcement['category']
@@ -15,6 +16,7 @@ const CATEGORY_BADGE: Record<Announcement['category'], 'blue' | 'red' | 'green' 
 
 export default function Announcements() {
   const [filter, setFilter] = useState<Filter>('all')
+  const { data: announcements } = useQuery(fetchAnnouncements, mockAnnouncements)
 
   const list = announcements
     .filter((a) => filter === 'all' || a.category === filter)

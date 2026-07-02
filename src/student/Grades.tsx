@@ -10,11 +10,13 @@ import {
   YAxis,
 } from 'recharts'
 import { Badge, Card, Progress } from '@/components/ui'
-import { grades, progressOverTime, SUBJECT_COLORS } from '@/lib/mockData'
+import { fetchGrades, useQuery } from '@/lib/api'
+import { grades as mockGrades, progressOverTime, SUBJECT_COLORS } from '@/lib/mockData'
 
 export default function Grades() {
   const [expanded, setExpanded] = useState<string | null>(null)
-  const avg = Math.round(grades.reduce((s, g) => s + g.score, 0) / grades.length)
+  const { data: grades } = useQuery(fetchGrades, mockGrades)
+  const avg = Math.round(grades.reduce((s, g) => s + g.score, 0) / Math.max(1, grades.length))
 
   return (
     <div className="space-y-4 animate-fade-up">

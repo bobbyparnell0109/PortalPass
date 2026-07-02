@@ -2,13 +2,29 @@ import { Link } from 'react-router-dom'
 import { AlertTriangle, ArrowRight, BookOpen, TrendingUp, Utensils, Wallet } from 'lucide-react'
 import { Badge, Button, Card, Progress } from '@/components/ui'
 import { cn, formatCurrency } from '@/lib/utils'
-import { currentStudent, grades, homework, transactions } from '@/lib/mockData'
+import {
+  fetchGrades,
+  fetchHomework,
+  fetchMyStudent,
+  fetchTransactions,
+  useQuery,
+} from '@/lib/api'
+import {
+  currentStudent,
+  grades as mockGrades,
+  homework as mockHomework,
+  transactions as mockTransactions,
+} from '@/lib/mockData'
 
 export default function ParentDashboard() {
-  const avg = Math.round(grades.reduce((s, g) => s + g.score, 0) / grades.length)
+  const { data: child } = useQuery(fetchMyStudent, currentStudent)
+  const { data: grades } = useQuery(fetchGrades, mockGrades)
+  const { data: homework } = useQuery(fetchHomework, mockHomework)
+  const { data: transactions } = useQuery(fetchTransactions, mockTransactions)
+  const avg = Math.round(grades.reduce((s, g) => s + g.score, 0) / Math.max(1, grades.length))
   const pendingHw = homework.filter((h) => h.status !== 'completed').length
   const overdueHw = homework.filter((h) => h.status === 'overdue').length
-  const balance = currentStudent.lunchBalance
+  const balance = child.lunchBalance
   const lowBalance = balance < 5
 
   return (
@@ -16,14 +32,14 @@ export default function ParentDashboard() {
       {/* Child selector — becomes tabs when a parent has multiple children */}
       <Card className="flex items-center gap-4 p-5">
         <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-soft text-3xl">
-          {currentStudent.avatarEmoji}
+          {child.avatarEmoji}
         </div>
         <div className="flex-1">
           <p className="text-lg font-black">
-            {currentStudent.firstName} {currentStudent.lastName}
+            {child.firstName} {child.lastName}
           </p>
           <p className="text-sm text-muted-foreground">
-            Year {currentStudent.yearGroup} · {currentStudent.form} · Springwood High School
+            Year {child.yearGroup} · {child.form} · Springwood High School
           </p>
         </div>
         <Badge variant="green">Active</Badge>
@@ -53,8 +69,8 @@ export default function ParentDashboard() {
             <TrendingUp className="h-5 w-5" />
           </div>
           <p className="text-xs font-medium text-muted-foreground">Attendance</p>
-          <p className="text-2xl font-black">{currentStudent.attendancePct}%</p>
-          <Progress value={currentStudent.attendancePct} className="mt-2" />
+          <p className="text-2xl font-black">{child.attendancePct}%</p>
+          <Progress value={child.attendancePct} className="mt-2" />
         </Card>
         <Card className="p-4">
           <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl bg-accent-soft text-accent">

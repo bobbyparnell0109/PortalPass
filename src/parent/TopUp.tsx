@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { ChevronLeft, CreditCard, RefreshCw, ShieldCheck } from 'lucide-react'
 import { Badge, Button, Card } from '@/components/ui'
 import { cn, formatCurrency } from '@/lib/utils'
+import { fetchMyStudent, topUpLunch, useQuery } from '@/lib/api'
 import { currentStudent } from '@/lib/mockData'
 
 const AMOUNTS = [5, 10, 15, 20, 30, 50]
@@ -11,10 +12,17 @@ export default function TopUp() {
   const [amount, setAmount] = useState(15)
   const [autoTopUp, setAutoTopUp] = useState(false)
   const [done, setDone] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const { data: child } = useQuery(fetchMyStudent, currentStudent)
 
-  const pay = () => {
-    // Demo flow. Production creates a Stripe Checkout session via a
-    // Supabase Edge Function and confirms by webhook before crediting.
+  const pay = async () => {
+    // Demo flow: writes a real top-up row (the balance trigger applies it).
+    // Production creates a Stripe Checkout session via an edge function and
+    // credits on the webhook instead.
+    if (busy) return
+    setBusy(true)
+    await topUpLunch(child.id, amount * 100)
+    setBusy(false)
     setDone(true)
   }
 
@@ -26,11 +34,11 @@ export default function TopUp() {
         </div>
         <h1 className="text-2xl font-black">Top-up complete!</h1>
         <p className="mt-2 text-muted-foreground">
-          {formatCurrency(amount)} added to {currentStudent.firstName}'s lunch account.
+          {formatCurrency(amount)} added to {child.firstName}'s lunch account.
           A receipt has been emailed to you.
         </p>
         <p className="mt-1 text-sm text-muted-foreground">
-          New balance: <strong>{formatCurrency(currentStudent.lunchBalance + amount)}</strong>
+          New balance: <strong>{formatCurrency(child.lunchBalance + amount)}</strong>
         </p>
         <Link to="/parent">
           <Button className="mt-6">Back to dashboard</Button>
@@ -48,7 +56,7 @@ export default function TopUp() {
       <header>
         <h1 className="text-2xl font-black tracking-tight">Top up lunch account</h1>
         <p className="text-sm text-muted-foreground">
-          {currentStudent.firstName}'s balance: {formatCurrency(currentStudent.lunchBalance)}
+          {child.firstName}'s balance: {formatCurrency(child.lunchBalance)}
         </p>
       </header>
 
@@ -115,8 +123,8 @@ export default function TopUp() {
         </div>
       </Card>
 
-      <Button size="lg" className="w-full" onClick={pay}>
-        Pay {formatCurrency(amount)}
+      <Button size="lg" className="w-full" onClick={pay} disabled={busy}>
+        {busy ? 'Processing…' : `Pay ${formatCurrency(amount)}`}
       </Button>
       <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
         <ShieldCheck className="h-3.5 w-3.5" /> Payments processed securely by Stripe

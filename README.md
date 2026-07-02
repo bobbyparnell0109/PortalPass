@@ -21,7 +21,8 @@ npm run dev
 Open http://localhost:5173 and pick a portal:
 
 - **Student**: PIN `12345` (or tap the fingerprint for the biometric demo)
-- **Parent / Admin**: any email + password (demo mode)
+- **Parent**: `parent@portalpass.demo` · `PortalPass-Demo-2026`
+- **Admin**: `admin@springwood.sch.uk` · `PortalPass-Demo-2026`
 
 ## Tech stack
 
@@ -32,13 +33,27 @@ Open http://localhost:5173 and pick a portal:
   `supabase/migrations/0001_initial_schema.sql`
 - **react-router-dom** with role-guarded route trees
 
-## Demo mode vs Supabase
+## Live backend
 
-Without env vars the app runs entirely on the mock data layer
-(`src/lib/mockData.ts`) so every screen works offline. To connect a real
-backend:
+The app ships wired to a live Supabase project (`PortalPass`, eu-west-2)
+seeded with Springwood High School demo data. PIN verification runs through
+the `verify_pin` RPC against a bcrypt hash; parent/admin logins are real
+Supabase Auth sessions; dashboards, homework (including completion
+persistence), grades, timetable, attendance, announcements and the admin
+directory all read/write the live database under row-level security. Every
+fetcher in `src/lib/api.ts` degrades to the bundled demo dataset if the
+backend is unreachable, so the app still works fully offline.
 
-1. Create a Supabase project and run the migration in `supabase/migrations/`.
+> **Note**: migration `0003_messaging_policies.sql` is committed but not yet
+> applied to the hosted demo project (tool approval gate at build time). Until
+> it is run in the Supabase SQL editor, live message threads, parent grade
+> detail and parent top-up persistence fall back to demo data; everything
+> else is live.
+
+To point the app at your own project instead:
+
+1. Create a Supabase project and run the migrations in `supabase/migrations/`
+   (in order) plus `supabase/seed.sql`.
 2. Copy `.env.example` to `.env` and fill in `VITE_SUPABASE_URL` and
    `VITE_SUPABASE_ANON_KEY`.
 

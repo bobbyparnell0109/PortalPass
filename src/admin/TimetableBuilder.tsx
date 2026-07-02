@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { AlertTriangle, Download } from 'lucide-react'
 import { Badge, Button, Card } from '@/components/ui'
-import { timetable } from '@/lib/mockData'
+import { fetchLessons, useQuery } from '@/lib/api'
+import { timetable as mockTimetable } from '@/lib/mockData'
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 const PERIODS = [
@@ -14,6 +15,7 @@ const PERIODS = [
 
 export default function TimetableBuilder() {
   const [selected, setSelected] = useState<string | null>(null)
+  const { data: timetable } = useQuery(fetchLessons, mockTimetable)
 
   // Clash detection: same teacher or room in the same slot
   const clashes = useMemo(() => {
@@ -34,13 +36,13 @@ export default function TimetableBuilder() {
       }
     }
     return flagged
-  }, [])
+  }, [timetable])
 
   const grid = useMemo(() => {
     const m = new Map<string, (typeof timetable)[number]>()
     for (const l of timetable) m.set(`${l.day}-${l.start}`, l)
     return m
-  }, [])
+  }, [timetable])
 
   const sel = timetable.find((l) => l.id === selected)
 

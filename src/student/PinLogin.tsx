@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { Delete, Fingerprint } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useApp } from '@/lib/store'
-import { currentStudent, DEMO_PIN } from '@/lib/mockData'
+import { studentPinLogin } from '@/lib/api'
+import { currentStudent } from '@/lib/mockData'
 
 const PIN_LENGTH = 5
 
@@ -11,6 +12,7 @@ export default function PinLogin() {
   const [pin, setPin] = useState('')
   const [error, setError] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [checking, setChecking] = useState(false)
   const { login, session } = useApp()
   const navigate = useNavigate()
 
@@ -19,27 +21,54 @@ export default function PinLogin() {
   }, [session, navigate])
 
   useEffect(() => {
-    if (pin.length !== PIN_LENGTH) return
-    if (pin === DEMO_PIN) {
-      setSuccess(true)
-      const t = setTimeout(() => {
-        login('student', `${currentStudent.firstName} ${currentStudent.lastName}`)
-        navigate('/app')
-      }, 450)
-      return () => clearTimeout(t)
+    if (pin.length !== PIN_LENGTH || checking) return
+    let active = true
+    setChecking(true)
+    studentPinLogin(pin).then((result) => {
+      if (!active) return
+      setChecking(false)
+      if (result) {
+        setSuccess(true)
+        setTimeout(() => {
+          login(result.role, result.name)
+          navigate('/app')
+        }, 450)
+      } else {
+        setError(true)
+        setTimeout(() => {
+          setPin('')
+          setError(false)
+        }, 500)
+      }
+    })
+    return () => {
+      active = false
     }
-    setError(true)
-    const t = setTimeout(() => {
-      setPin('')
-      setError(false)
-    }, 500)
-    return () => clearTimeout(t)
-  }, [pin, login, navigate])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pin])
 
   const press = (d: string) => {
-    if (pin.length < PIN_LENGTH && !success) setPin(pin + d)
+    if (pin.length < PIN_LENGTH && !success && !checking) setPin(pin + d)
   }
-  const backspace = () => setPin(pin.slice(0, -1))
+  const backspace = () => {
+    if (!checking) setPin(pin.slice(0, -1))
+  }
+
+  const biometric = async () => {
+    // Demo: biometrics resolve via the demo PIN. On device this calls the
+    // platform WebAuthn / Face ID API instead.
+    if (checking || success) return
+    setChecking(true)
+    const result = await studentPinLogin('12345')
+    setChecking(false)
+    if (result) {
+      setSuccess(true)
+      setTimeout(() => {
+        login(result.role, result.name)
+        navigate('/app')
+      }, 450)
+    }
+  }
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-between bg-gradient-to-b from-violet-600 to-fuchsia-600 px-6 py-12 text-white">
@@ -48,7 +77,9 @@ export default function PinLogin() {
           {currentStudent.avatarEmoji}
         </div>
         <h1 className="mt-2 text-2xl font-black">Hey {currentStudent.firstName}!</h1>
-        <p className="text-white/70">Enter your {PIN_LENGTH}-digit PIN</p>
+        <p className="text-white/70">
+          {checking ? 'Checking…' : `Enter your ${PIN_LENGTH}-digit PIN`}
+        </p>
       </div>
 
       <div className={cn('flex gap-4', error && 'animate-shake')}>
@@ -60,6 +91,7 @@ export default function PinLogin() {
               i < pin.length && 'scale-110 border-white bg-white',
               success && 'border-emerald-300 bg-emerald-300',
               error && 'border-red-300 bg-red-300',
+              checking && 'animate-pulse',
             )}
           />
         ))}
@@ -72,18 +104,7 @@ export default function PinLogin() {
               {d}
             </KeypadButton>
           ))}
-          <KeypadButton
-            aria-label="Biometric login"
-            onClick={() => {
-              // Demo: biometrics resolve instantly. On device this calls
-              // the platform WebAuthn / Face ID API.
-              setSuccess(true)
-              setTimeout(() => {
-                login('student', `${currentStudent.firstName} ${currentStudent.lastName}`)
-                navigate('/app')
-              }, 450)
-            }}
-          >
+          <KeypadButton aria-label="Biometric login" onClick={biometric}>
             <Fingerprint className="mx-auto h-6 w-6" />
           </KeypadButton>
           <KeypadButton onClick={() => press('0')}>0</KeypadButton>
