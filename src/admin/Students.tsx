@@ -69,8 +69,8 @@ export default function Students() {
         </select>
       </div>
 
-      <Card className="overflow-hidden">
-        <table className="w-full text-sm">
+      <Card className="overflow-x-auto">
+        <table className="w-full min-w-[720px] text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/50 text-left text-xs uppercase text-muted-foreground">
               <th className="px-4 py-3">Student</th>

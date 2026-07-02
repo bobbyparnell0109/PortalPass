@@ -66,12 +66,12 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <Card className="p-5 xl:col-span-2">
+        <Card className="overflow-x-auto p-5 xl:col-span-2">
           <h2 className="mb-3 font-bold">Attendance watchlist</h2>
           {belowThreshold.length === 0 ? (
             <p className="text-sm text-muted-foreground">Everyone is above the 95% target 🎉</p>
           ) : (
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[480px] text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
                   <th className="pb-2">Student</th>
