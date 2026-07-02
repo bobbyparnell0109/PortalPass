@@ -29,6 +29,8 @@ const Students = lazy(() => import('@/admin/Students'))
 const AttendanceMarking = lazy(() => import('@/admin/AttendanceMarking'))
 const AdminAnnouncements = lazy(() => import('@/admin/AdminAnnouncements'))
 const TimetableBuilder = lazy(() => import('@/admin/TimetableBuilder'))
+const Staff = lazy(() => import('@/admin/Staff'))
+const SchoolSettings = lazy(() => import('@/admin/SchoolSettings'))
 
 function RouteFallback() {
   return (
@@ -108,6 +110,8 @@ export default function App() {
             <Route path="attendance" element={<AttendanceMarking />} />
             <Route path="announcements" element={<AdminAnnouncements />} />
             <Route path="timetable" element={<TimetableBuilder />} />
+            <Route path="staff" element={<Staff />} />
+            <Route path="settings" element={<SchoolSettings />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

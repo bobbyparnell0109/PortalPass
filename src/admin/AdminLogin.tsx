@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ShieldCheck } from 'lucide-react'
 import { Button, Card, Input } from '@/components/ui'
 import { useApp } from '@/lib/store'
-import { emailLogin } from '@/lib/api'
+import { cachedSchool, emailLogin } from '@/lib/api'
 
 export default function AdminLogin() {
   const [email, setEmail] = useState('')
@@ -36,7 +36,7 @@ export default function AdminLogin() {
             <ShieldCheck className="h-7 w-7" />
           </div>
           <h1 className="text-2xl font-black">PortalPass Admin</h1>
-          <p className="text-sm text-slate-400">Springwood High School</p>
+          <p className="text-sm text-slate-400">{cachedSchool().name}</p>
         </div>
         <form onSubmit={submit} className="space-y-3">
           <Input

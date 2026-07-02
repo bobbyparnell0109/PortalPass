@@ -9,6 +9,7 @@ import {
   Wallet,
 } from 'lucide-react'
 import { Badge, Button, Card } from '@/components/ui'
+import { useApp } from '@/lib/store'
 import {
   fetchAllStudents,
   fetchAnnouncements,
@@ -24,6 +25,7 @@ import {
 } from '@/lib/mockData'
 
 export default function AdminDashboard() {
+  const { school } = useApp()
   const { data: allStudents } = useQuery(fetchAllStudents, mockStudents)
   const { data: announcements } = useQuery(fetchAnnouncements, mockAnnouncements)
   const { data: events } = useQuery(fetchEvents, mockEvents)
@@ -41,7 +43,7 @@ export default function AdminDashboard() {
           <h1 className="text-2xl font-black tracking-tight">Good morning 👋</h1>
           <p className="text-sm text-muted-foreground">
             {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-            {' · '}Springwood High School
+            {' · '}{school.name}
           </p>
         </div>
         <div className="flex gap-2">

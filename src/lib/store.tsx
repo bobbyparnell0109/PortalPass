@@ -7,8 +7,9 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { HomeworkItem, MessageThread, Role } from './types'
+import type { HomeworkItem, MessageThread, Role, School } from './types'
 import { homework as seedHomework, messageThreads as seedThreads } from './mockData'
+import { hexToHslTriple } from './utils'
 import * as api from './api'
 
 export type ThemeMode = 'light' | 'dark' | 'auto'
@@ -33,6 +34,9 @@ export const ACCENTS: AccentOption[] = [
 interface Prefs {
   themeMode: ThemeMode
   accent: string
+  // Set once the user picks their own accent; until then the school's
+  // brand colour is used.
+  accentCustomized?: boolean
   fontSize: FontSize
   compact: boolean
 }
@@ -58,6 +62,7 @@ interface Session {
 
 interface AppState {
   session: Session | null
+  school: School
   login: (role: Role, name: string) => void
   logout: () => void
   prefs: Prefs
@@ -100,6 +105,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   )
   const [homework, setHomework] = useState<HomeworkItem[]>(seedHomework)
   const [threads, setThreads] = useState<MessageThread[]>(seedThreads)
+  const [school, setSchool] = useState<School>(api.cachedSchool)
+
+  // School branding loads once signed in (RLS needs a session to read it)
+  useEffect(() => {
+    if (!session) return
+    let active = true
+    api.fetchSchool().then((s) => active && setSchool(s))
+    return () => {
+      active = false
+    }
+  }, [session])
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
@@ -125,11 +141,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const root = document.documentElement
     root.classList.toggle('dark', isDark)
-    root.style.setProperty('--accent', prefs.accent)
-    const accent = ACCENTS.find((a) => a.value === prefs.accent) ?? ACCENTS[0]
-    root.style.setProperty('--accent-soft', isDark ? accent.softDark : accent.soft)
+    const schoolTriple = hexToHslTriple(school.primaryColor)
+    if (!prefs.accentCustomized && schoolTriple) {
+      // School branding is the default until the user personalises
+      const hue = schoolTriple.split(' ')[0]
+      root.style.setProperty('--accent', schoolTriple)
+      root.style.setProperty('--accent-soft', isDark ? `${hue} 40% 18%` : `${hue} 90% 96%`)
+    } else {
+      root.style.setProperty('--accent', prefs.accent)
+      const accent = ACCENTS.find((a) => a.value === prefs.accent) ?? ACCENTS[0]
+      root.style.setProperty('--accent-soft', isDark ? accent.softDark : accent.soft)
+    }
     root.style.setProperty('--font-scale', String(FONT_SCALE[prefs.fontSize]))
-  }, [isDark, prefs.accent, prefs.fontSize])
+  }, [isDark, prefs.accent, prefs.accentCustomized, prefs.fontSize, school.primaryColor])
 
   useEffect(() => {
     localStorage.setItem('pp-prefs', JSON.stringify(prefs))
@@ -195,6 +219,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       session,
+      school,
       login,
       logout,
       prefs,
@@ -206,7 +231,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       sendThreadMessage,
       unreadMessages,
     }),
-    [session, login, logout, prefs, setPrefs, isDark, homework, toggleHomework, threads, sendThreadMessage, unreadMessages],
+    [session, school, login, logout, prefs, setPrefs, isDark, homework, toggleHomework, threads, sendThreadMessage, unreadMessages],
   )
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

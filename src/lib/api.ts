@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { supabase, DEMO_PASSWORD, DEMO_STUDENT_EMAIL } from './supabase'
+import { createClient } from '@supabase/supabase-js'
+import { supabase, supabaseConfig, DEMO_PASSWORD, DEMO_STUDENT_EMAIL } from './supabase'
 import type {
   Announcement,
   AttendanceRecord,
@@ -10,8 +11,11 @@ import type {
   Message,
   MessageThread,
   Role,
+  RoomRef,
+  School,
   StaffMember,
   Student,
+  SubjectRef,
   Transaction,
 } from './types'
 import * as mock from './mockData'
@@ -190,7 +194,7 @@ export async function fetchLessons(): Promise<Lesson[]> {
       await supabase
         .from('lessons')
         .select(
-          'id, day_of_week, start_time, end_time, subjects(name, color), rooms(name, building), staff(profiles(first_name, last_name))',
+          'id, day_of_week, start_time, end_time, class_group, subjects(name, color), rooms(name, building), staff(profiles(first_name, last_name))',
         )
         .eq('is_deleted', false),
     ) as unknown as {
@@ -198,6 +202,7 @@ export async function fetchLessons(): Promise<Lesson[]> {
       day_of_week: number
       start_time: string
       end_time: string
+      class_group: string
       subjects: { name: string; color: string } | null
       rooms: { name: string; building: string } | null
       staff: { profiles: { first_name: string; last_name: string } | null } | null
@@ -215,6 +220,7 @@ export async function fetchLessons(): Promise<Lesson[]> {
       start: r.start_time.slice(0, 5),
       end: r.end_time.slice(0, 5),
       color: r.subjects?.color ?? '240 5% 50%',
+      classGroup: r.class_group,
     }))
   }, mock.timetable)
 }
@@ -615,12 +621,274 @@ export async function fetchStaff(): Promise<StaffMember[]> {
 }
 
 // ---------------------------------------------------------------------------
+// School operations (admin) — branding, roster, timetable building.
+// Writes surface their errors instead of silently falling back so admins
+// always know whether a change was saved.
+// ---------------------------------------------------------------------------
+
+export type WriteResult = { ok: true } | { ok: false; error: string }
+
+const err = (e: unknown): WriteResult => ({
+  ok: false,
+  error: e instanceof Error ? e.message : String(e),
+})
+
+const DEFAULT_SCHOOL: School = {
+  id: '11111111-1111-1111-1111-111111111111',
+  name: 'Springwood High School',
+  primaryColor: '#7c3aed',
+  hoursStart: '08:50',
+  hoursEnd: '15:15',
+}
+
+export async function fetchSchool(): Promise<School> {
+  return withFallback(async () => {
+    const rows = throwOnError(
+      await supabase.from('schools').select('id, name, primary_color, school_hours').limit(1),
+    ) as unknown as {
+      id: string
+      name: string
+      primary_color: string | null
+      school_hours: { start?: string; end?: string } | null
+    }[]
+    if (rows.length === 0) throw new Error('no school visible')
+    const s = rows[0]
+    const school: School = {
+      id: s.id,
+      name: s.name,
+      primaryColor: s.primary_color ?? DEFAULT_SCHOOL.primaryColor,
+      hoursStart: s.school_hours?.start ?? DEFAULT_SCHOOL.hoursStart,
+      hoursEnd: s.school_hours?.end ?? DEFAULT_SCHOOL.hoursEnd,
+    }
+    // Cache for pre-auth screens (login pages can't read the school row yet)
+    localStorage.setItem('pp-school', JSON.stringify(school))
+    return school
+  }, cachedSchool())
+}
+
+export function cachedSchool(): School {
+  try {
+    const raw = localStorage.getItem('pp-school')
+    if (raw) return { ...DEFAULT_SCHOOL, ...JSON.parse(raw) }
+  } catch {
+    /* fall through */
+  }
+  return DEFAULT_SCHOOL
+}
+
+export async function updateSchool(patch: {
+  name?: string
+  primaryColor?: string
+  hoursStart?: string
+  hoursEnd?: string
+}): Promise<WriteResult> {
+  try {
+    const school = await fetchSchool()
+    const { error } = await supabase
+      .from('schools')
+      .update({
+        ...(patch.name !== undefined && { name: patch.name }),
+        ...(patch.primaryColor !== undefined && { primary_color: patch.primaryColor }),
+        school_hours: {
+          start: patch.hoursStart ?? school.hoursStart,
+          end: patch.hoursEnd ?? school.hoursEnd,
+        },
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', school.id)
+    if (error) throw new Error(error.message)
+    localStorage.removeItem('pp-school')
+    return { ok: true }
+  } catch (e) {
+    return err(e)
+  }
+}
+
+// signUp on a secondary client so creating accounts never touches the
+// admin's own session. Production replaces this with invite emails sent
+// from an edge function.
+const signUpClient = createClient(supabaseConfig.url, supabaseConfig.anonKey, {
+  auth: { persistSession: false, autoRefreshToken: false },
+})
+
+function tempPassword(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(18))
+  return 'Pp1-' + btoa(String.fromCharCode(...bytes)).replace(/[+/=]/g, 'x')
+}
+
+async function createAccount(email: string): Promise<string> {
+  const { data, error } = await signUpClient.auth.signUp({
+    email,
+    password: tempPassword(),
+  })
+  if (error) throw new Error(error.message)
+  if (!data.user) throw new Error('account creation returned no user')
+  if (data.user.identities && data.user.identities.length === 0) {
+    throw new Error('an account with this email already exists')
+  }
+  return data.user.id
+}
+
+export async function createStudent(input: {
+  firstName: string
+  lastName: string
+  email: string
+  yearGroup: number
+  form: string
+  house: string
+  pin: string
+  avatarEmoji?: string
+}): Promise<WriteResult> {
+  try {
+    const schoolId = await mySchoolId()
+    const uid = await createAccount(input.email)
+    const { error: pErr } = await supabase.from('profiles').insert({
+      id: uid,
+      school_id: schoolId,
+      role: 'student',
+      first_name: input.firstName,
+      last_name: input.lastName,
+      email: input.email,
+      avatar_emoji: input.avatarEmoji ?? '🙂',
+    })
+    if (pErr) throw new Error(pErr.message)
+    const { error: sErr } = await supabase.from('students').insert({
+      id: uid,
+      school_id: schoolId,
+      year_group: input.yearGroup,
+      form: input.form,
+      house: input.house,
+    })
+    if (sErr) throw new Error(sErr.message)
+    const { error: pinErr } = await supabase.rpc('admin_set_pin', {
+      target: uid,
+      pin: input.pin,
+    })
+    if (pinErr) throw new Error(pinErr.message)
+    return { ok: true }
+  } catch (e) {
+    return err(e)
+  }
+}
+
+export async function createTeacher(input: {
+  firstName: string
+  lastName: string
+  email: string
+  title: string
+  subjects: string[]
+}): Promise<WriteResult> {
+  try {
+    const schoolId = await mySchoolId()
+    const uid = await createAccount(input.email)
+    const { error: pErr } = await supabase.from('profiles').insert({
+      id: uid,
+      school_id: schoolId,
+      role: 'staff',
+      first_name: input.firstName,
+      last_name: input.lastName,
+      email: input.email,
+      avatar_emoji: '🧑‍🏫',
+    })
+    if (pErr) throw new Error(pErr.message)
+    const { error: sErr } = await supabase.from('staff').insert({
+      id: uid,
+      school_id: schoolId,
+      title: input.title,
+      subjects: input.subjects,
+    })
+    if (sErr) throw new Error(sErr.message)
+    return { ok: true }
+  } catch (e) {
+    return err(e)
+  }
+}
+
+export async function setStudentStatus(
+  studentId: string,
+  status: Student['status'],
+): Promise<WriteResult> {
+  try {
+    const { error } = await supabase
+      .from('students')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', studentId)
+    if (error) throw new Error(error.message)
+    return { ok: true }
+  } catch (e) {
+    return err(e)
+  }
+}
+
+export async function fetchSubjects(): Promise<SubjectRef[]> {
+  return withFallback(async () => {
+    const rows = throwOnError(
+      await supabase.from('subjects').select('id, name, color').eq('is_deleted', false).order('name'),
+    ) as unknown as SubjectRef[]
+    if (rows.length === 0) throw new Error('no subjects visible')
+    return rows
+  }, Object.entries(mock.SUBJECT_COLORS).map(([name, color], i) => ({ id: `mock-sub-${i}`, name, color })))
+}
+
+export async function fetchRooms(): Promise<RoomRef[]> {
+  return withFallback(async () => {
+    const rows = throwOnError(
+      await supabase.from('rooms').select('id, name, building').eq('is_deleted', false).order('name'),
+    ) as unknown as RoomRef[]
+    if (rows.length === 0) throw new Error('no rooms visible')
+    return rows
+  }, [])
+}
+
+export async function createLesson(input: {
+  subjectId: string
+  teacherId: string
+  roomId: string
+  classGroup: string
+  day: number
+  start: string
+  end: string
+}): Promise<WriteResult> {
+  try {
+    const schoolId = await mySchoolId()
+    const { error } = await supabase.from('lessons').insert({
+      school_id: schoolId,
+      subject_id: input.subjectId,
+      teacher_id: input.teacherId,
+      room_id: input.roomId,
+      class_group: input.classGroup,
+      day_of_week: input.day,
+      start_time: input.start,
+      end_time: input.end,
+    })
+    if (error) throw new Error(error.message)
+    return { ok: true }
+  } catch (e) {
+    return err(e)
+  }
+}
+
+export async function deleteLesson(id: string): Promise<WriteResult> {
+  try {
+    const { error } = await supabase.from('lessons').delete().eq('id', id)
+    if (error) throw new Error(error.message)
+    return { ok: true }
+  } catch (e) {
+    return err(e)
+  }
+}
+
+// ---------------------------------------------------------------------------
 // useQuery — minimal fetch-on-mount hook with loading state
 // ---------------------------------------------------------------------------
 
-export function useQuery<T>(fetcher: () => Promise<T>, initial: T): { data: T; loading: boolean } {
+export function useQuery<T>(
+  fetcher: () => Promise<T>,
+  initial: T,
+): { data: T; loading: boolean; refetch: () => void } {
   const [data, setData] = useState<T>(initial)
   const [loading, setLoading] = useState(true)
+  const [nonce, setNonce] = useState(0)
   useEffect(() => {
     let active = true
     fetcher()
@@ -631,6 +899,6 @@ export function useQuery<T>(fetcher: () => Promise<T>, initial: T): { data: T; l
       active = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-  return { data, loading }
+  }, [nonce])
+  return { data, loading, refetch: () => setNonce((n) => n + 1) }
 }

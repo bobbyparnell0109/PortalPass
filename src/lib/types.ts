@@ -25,6 +25,27 @@ export interface Lesson {
   start: string // "09:00"
   end: string
   color: string // tailwind-safe hsl string
+  classGroup?: string
+}
+
+export interface School {
+  id: string
+  name: string
+  primaryColor: string // hex, e.g. #7c3aed
+  hoursStart: string
+  hoursEnd: string
+}
+
+export interface SubjectRef {
+  id: string
+  name: string
+  color: string
+}
+
+export interface RoomRef {
+  id: string
+  name: string
+  building: string
 }
 
 export interface HomeworkItem {

@@ -11,6 +11,7 @@ const url = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || DEMO_UR
 const anonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) || DEMO_KEY
 
 export const supabase: SupabaseClient = createClient(url, anonKey)
+export const supabaseConfig = { url, anonKey }
 
 // Demo credentials for the seeded Springwood High School data. In
 // production the student PIN flow exchanges a verified PIN for a session

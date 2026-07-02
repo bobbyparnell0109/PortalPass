@@ -8,7 +8,7 @@ import { currentStudent } from '@/lib/mockData'
 const AVATARS = ['😎', '🦊', '🚀', '🌟', '⚽', '🎨', '🎮', '📚', '🐱', '🦄', '🔥', '🎧']
 
 export default function Account() {
-  const { prefs, setPrefs, logout } = useApp()
+  const { prefs, setPrefs, logout, school } = useApp()
   const navigate = useNavigate()
 
   return (
@@ -27,7 +27,7 @@ export default function Account() {
           </p>
           <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <School className="h-3.5 w-3.5" />
-            Springwood High · {currentStudent.form} · {currentStudent.house}
+            {school.name} · {currentStudent.form} · {currentStudent.house}
           </p>
         </div>
       </Card>
@@ -81,7 +81,7 @@ export default function Account() {
             <button
               key={a.name}
               title={a.name}
-              onClick={() => setPrefs({ accent: a.value })}
+              onClick={() => setPrefs({ accent: a.value, accentCustomized: true })}
               className={cn(
                 'h-11 w-11 rounded-2xl transition-all hover:scale-110',
                 prefs.accent === a.value && 'scale-110 ring-2 ring-foreground ring-offset-2 ring-offset-card',

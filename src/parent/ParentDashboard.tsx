@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { AlertTriangle, ArrowRight, BookOpen, TrendingUp, Utensils, Wallet } from 'lucide-react'
 import { Badge, Button, Card, Progress } from '@/components/ui'
 import { cn, formatCurrency } from '@/lib/utils'
+import { useApp } from '@/lib/store'
 import {
   fetchGrades,
   fetchHomework,
@@ -17,6 +18,7 @@ import {
 } from '@/lib/mockData'
 
 export default function ParentDashboard() {
+  const { school } = useApp()
   const { data: child } = useQuery(fetchMyStudent, currentStudent)
   const { data: grades } = useQuery(fetchGrades, mockGrades)
   const { data: homework } = useQuery(fetchHomework, mockHomework)
@@ -39,7 +41,7 @@ export default function ParentDashboard() {
             {child.firstName} {child.lastName}
           </p>
           <p className="text-sm text-muted-foreground">
-            Year {child.yearGroup} · {child.form} · Springwood High School
+            Year {child.yearGroup} · {child.form} · {school.name}
           </p>
         </div>
         <Badge variant="green">Active</Badge>

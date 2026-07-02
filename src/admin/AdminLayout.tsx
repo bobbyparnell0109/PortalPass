@@ -2,10 +2,12 @@ import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   CalendarRange,
+  Contact,
   LayoutDashboard,
   LogOut,
   Megaphone,
   Menu,
+  Settings,
   Sparkles,
   UserRoundCheck,
   Users,
@@ -17,9 +19,11 @@ import { useApp } from '@/lib/store'
 const nav = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/admin/students', icon: Users, label: 'Students' },
+  { to: '/admin/staff', icon: Contact, label: 'Staff' },
   { to: '/admin/attendance', icon: UserRoundCheck, label: 'Attendance' },
   { to: '/admin/timetable', icon: CalendarRange, label: 'Timetable' },
   { to: '/admin/announcements', icon: Megaphone, label: 'Announcements' },
+  { to: '/admin/settings', icon: Settings, label: 'School settings' },
 ]
 
 export default function AdminLayout() {
