@@ -49,11 +49,8 @@ directory all read/write the live database under row-level security. Every
 fetcher in `src/lib/api.ts` degrades to the bundled demo dataset if the
 backend is unreachable, so the app still works fully offline.
 
-> **Note**: migration `0003_messaging_policies.sql` is committed but not yet
-> applied to the hosted demo project (tool approval gate at build time). Until
-> it is run in the Supabase SQL editor, live message threads, parent grade
-> detail and parent top-up persistence fall back to demo data; everything
-> else is live.
+All three migrations are applied to the hosted demo project — messaging,
+parent grade access and top-up persistence run fully live.
 
 To point the app at your own project instead:
 
