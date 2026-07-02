@@ -52,7 +52,7 @@ function RequireRole({ role, loginPath, children }: { role: Role; loginPath: str
 export default function App() {
   return (
     <AppProvider>
-      <BrowserRouter>
+      <BrowserRouter basename={import.meta.env.BASE_URL}>
         <Suspense fallback={<RouteFallback />}>
         <Routes>
           <Route path="/" element={<Landing />} />
