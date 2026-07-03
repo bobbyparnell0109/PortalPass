@@ -793,6 +793,7 @@ export async function createTeacher(input: {
   email: string
   title: string
   subjects: string[]
+  password: string
 }): Promise<WriteResult> {
   try {
     const schoolId = await mySchoolId()
@@ -814,6 +815,29 @@ export async function createTeacher(input: {
       subjects: input.subjects,
     })
     if (sErr) throw new Error(sErr.message)
+    const { error: pwErr } = await supabase.rpc('admin_set_staff_password', {
+      target: uid,
+      pwd: input.password,
+    })
+    if (pwErr) throw new Error(`teacher created but password not set: ${pwErr.message}`)
+    return { ok: true }
+  } catch (e) {
+    return err(e)
+  }
+}
+
+/** Memorable initial credentials, e.g. "maple-otter-4821". */
+export function tempStaffPassword(): string {
+  const a = ['maple', 'cedar', 'rowan', 'aspen', 'birch', 'alder', 'hazel', 'willow']
+  const b = ['otter', 'falcon', 'badger', 'heron', 'kestrel', 'roe', 'marten', 'wren']
+  const pick = (list: string[]) => list[Math.floor(Math.random() * list.length)]
+  return `${pick(a)}-${pick(b)}-${1000 + Math.floor(Math.random() * 9000)}`
+}
+
+export async function resetStudentPin(studentId: string, pin: string): Promise<WriteResult> {
+  try {
+    const { error } = await supabase.rpc('admin_set_pin', { target: studentId, pin })
+    if (error) throw new Error(error.message)
     return { ok: true }
   } catch (e) {
     return err(e)
@@ -944,6 +968,152 @@ export async function fetchMyLessons(): Promise<Lesson[]> {
     )
     return mine.length > 0 ? mine : all
   }, all)
+}
+
+// ---------------------------------------------------------------------------
+// Teacher portal
+// ---------------------------------------------------------------------------
+
+/** Lessons this signed-in teacher takes, straight from the database. */
+export async function fetchMyTeachingLessons(): Promise<Lesson[]> {
+  return withFallback(async () => {
+    const uid = await currentUserId()
+    if (!uid) throw new Error('not signed in')
+    const rows = throwOnError(
+      await supabase
+        .from('lessons')
+        .select(
+          'id, day_of_week, start_time, end_time, class_group, subjects(name, color), rooms(name, building)',
+        )
+        .eq('teacher_id', uid)
+        .eq('is_deleted', false),
+    ) as unknown as {
+      id: string
+      day_of_week: number
+      start_time: string
+      end_time: string
+      class_group: string
+      subjects: { name: string; color: string } | null
+      rooms: { name: string; building: string } | null
+    }[]
+    return rows.map((r) => ({
+      id: r.id,
+      subject: r.subjects?.name ?? 'Lesson',
+      teacher: 'You',
+      room: r.rooms?.name ?? '—',
+      building: r.rooms?.building ?? '',
+      day: r.day_of_week,
+      start: r.start_time.slice(0, 5),
+      end: r.end_time.slice(0, 5),
+      color: r.subjects?.color ?? '240 5% 50%',
+      classGroup: r.class_group,
+    }))
+  }, [])
+}
+
+export async function fetchStudentsByForm(form: string): Promise<Student[]> {
+  const all = await fetchAllStudents()
+  return all.filter((s) => s.form === form && s.status === 'active')
+}
+
+export async function createHomework(input: {
+  subjectId: string
+  classGroup: string
+  title: string
+  description: string
+  dueDate: string
+  estimatedMinutes?: number
+}): Promise<WriteResult> {
+  try {
+    const uid = await currentUserId()
+    if (!uid) throw new Error('not signed in')
+    const schoolId = await mySchoolId()
+    const { error } = await supabase.from('homework').insert({
+      school_id: schoolId,
+      subject_id: input.subjectId,
+      teacher_id: uid,
+      class_group: input.classGroup,
+      title: input.title,
+      description: input.description,
+      due_date: input.dueDate,
+      estimated_minutes: input.estimatedMinutes ?? null,
+    })
+    if (error) throw new Error(error.message)
+    return { ok: true }
+  } catch (e) {
+    return err(e)
+  }
+}
+
+export async function fetchHomeworkSetByMe(): Promise<
+  { id: string; title: string; classGroup: string; dueDate: string; subject: string }[]
+> {
+  return withFallback(async () => {
+    const uid = await currentUserId()
+    if (!uid) throw new Error('not signed in')
+    const rows = throwOnError(
+      await supabase
+        .from('homework')
+        .select('id, title, class_group, due_date, subjects(name)')
+        .eq('teacher_id', uid)
+        .eq('is_deleted', false)
+        .order('due_date', { ascending: false })
+        .limit(20),
+    ) as unknown as {
+      id: string
+      title: string
+      class_group: string
+      due_date: string
+      subjects: { name: string } | null
+    }[]
+    return rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      classGroup: r.class_group,
+      dueDate: r.due_date,
+      subject: r.subjects?.name ?? '—',
+    }))
+  }, [])
+}
+
+export async function createAssessmentWithGrades(input: {
+  subjectId: string
+  name: string
+  term: string
+  entries: { studentId: string; grade: string; score: number; feedback: string }[]
+}): Promise<WriteResult> {
+  try {
+    const uid = await currentUserId()
+    if (!uid) throw new Error('not signed in')
+    const schoolId = await mySchoolId()
+    const assessment = throwOnError(
+      await supabase
+        .from('assessments')
+        .insert({
+          school_id: schoolId,
+          subject_id: input.subjectId,
+          name: input.name,
+          term: input.term,
+        })
+        .select('id')
+        .single(),
+    ) as { id: string }
+    const { error } = await supabase.from('grades').insert(
+      input.entries.map((e) => ({
+        school_id: schoolId,
+        assessment_id: assessment.id,
+        student_id: e.studentId,
+        grade: e.grade,
+        score: e.score,
+        feedback: e.feedback || null,
+        entered_by: uid,
+      })),
+    )
+    if (error) throw new Error(error.message)
+    return { ok: true }
+  } catch (e) {
+    return err(e)
+  }
 }
 
 // ---------------------------------------------------------------------------

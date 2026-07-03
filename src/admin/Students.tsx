@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, type FormEvent } from 'react'
-import { Archive, ArchiveRestore, Download, Search, Upload, UserPlus, X } from 'lucide-react'
+import { Archive, ArchiveRestore, Download, KeyRound, Search, Upload, UserPlus, X } from 'lucide-react'
 import { Badge, Button, Card, Input, Progress } from '@/components/ui'
 import { formatCurrency } from '@/lib/utils'
 import { parseCsv } from '@/lib/csv'
@@ -7,6 +7,7 @@ import {
   createStudent,
   fetchAllStudents,
   importStudents,
+  resetStudentPin,
   setStudentStatus,
   useQuery,
   type ImportRowResult,
@@ -129,6 +130,13 @@ export default function Students() {
     setFirstName(''); setLastName(''); setEmail(''); setForm(''); setHouse('')
     setPin(randomPin())
     refetch()
+  }
+
+  const resetPin = async (id: string, name: string) => {
+    const newPin = randomPin()
+    const result = await resetStudentPin(id, newPin)
+    if (!result.ok) setError(result.error)
+    else setSuccess(`${name}'s PIN has been reset to ${newPin} — hand it over securely`)
   }
 
   const toggleArchive = async (id: string, current: string) => {
@@ -379,6 +387,14 @@ export default function Students() {
                   <Badge variant={s.status === 'active' ? 'green' : 'neutral'}>{s.status}</Badge>
                 </td>
                 <td className="px-4 py-3 text-right">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => resetPin(s.id, s.firstName)}
+                    aria-label="Reset PIN"
+                  >
+                    <KeyRound className="h-4 w-4" /> Reset PIN
+                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"

@@ -32,6 +32,11 @@ const TimetableBuilder = lazy(() => import('@/admin/TimetableBuilder'))
 const Staff = lazy(() => import('@/admin/Staff'))
 const SchoolSettings = lazy(() => import('@/admin/SchoolSettings'))
 const SubjectsRooms = lazy(() => import('@/admin/SubjectsRooms'))
+const StaffLogin = lazy(() => import('@/staff/StaffLogin'))
+const StaffLayout = lazy(() => import('@/staff/StaffLayout'))
+const StaffToday = lazy(() => import('@/staff/StaffToday'))
+const StaffHomework = lazy(() => import('@/staff/StaffHomework'))
+const StaffGrades = lazy(() => import('@/staff/StaffGrades'))
 
 function RouteFallback() {
   return (
@@ -94,6 +99,21 @@ export default function App() {
           >
             <Route index element={<ParentDashboard />} />
             <Route path="topup" element={<TopUp />} />
+          </Route>
+
+          {/* Teacher portal */}
+          <Route path="/staff/login" element={<StaffLogin />} />
+          <Route
+            path="/staff"
+            element={
+              <RequireRole role="staff" loginPath="/staff/login">
+                <StaffLayout />
+              </RequireRole>
+            }
+          >
+            <Route index element={<StaffToday />} />
+            <Route path="homework" element={<StaffHomework />} />
+            <Route path="grades" element={<StaffGrades />} />
           </Route>
 
           {/* Admin system */}

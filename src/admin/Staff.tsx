@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { UserPlus, X } from 'lucide-react'
 import { Badge, Button, Card, Input } from '@/components/ui'
-import { createTeacher, fetchStaff, fetchSubjects, useQuery } from '@/lib/api'
+import { createTeacher, fetchStaff, fetchSubjects, tempStaffPassword, useQuery } from '@/lib/api'
 import { staff as mockStaff } from '@/lib/mockData'
 
 export default function Staff() {
@@ -13,6 +13,7 @@ export default function Staff() {
   const [email, setEmail] = useState('')
   const [title, setTitle] = useState('')
   const [subjectSel, setSubjectSel] = useState<string[]>([])
+  const [password, setPassword] = useState(tempStaffPassword)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -33,15 +34,17 @@ export default function Staff() {
       email: email.trim().toLowerCase(),
       title: title.trim() || 'Teacher',
       subjects: subjectSel,
+      password,
     })
     setBusy(false)
     if (!result.ok) {
       setError(result.error)
       return
     }
-    setSuccess(`${firstName} ${lastName} added — they'll receive a sign-up confirmation email`)
+    setSuccess(`${firstName} ${lastName} added — their sign-in password is \"${password}\". Pass it on securely; they log in at the Teacher Portal.`)
     setShowForm(false)
     setFirstName(''); setLastName(''); setEmail(''); setTitle(''); setSubjectSel([])
+    setPassword(tempStaffPassword())
     refetch()
     setTimeout(() => setSuccess(''), 5000)
   }
@@ -75,6 +78,17 @@ export default function Staff() {
             </div>
             <Input type="email" placeholder="School email address" value={email} onChange={(e) => setEmail(e.target.value)} required />
             <Input placeholder="Role title, e.g. Head of Maths" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-muted-foreground">
+                Initial password (give this to the teacher)
+              </label>
+              <div className="flex gap-2">
+                <Input value={password} onChange={(e) => setPassword(e.target.value)} className="font-mono" required />
+                <Button type="button" variant="outline" onClick={() => setPassword(tempStaffPassword())}>
+                  Regenerate
+                </Button>
+              </div>
+            </div>
             <div>
               <p className="mb-2 text-sm font-semibold">Subjects taught</p>
               <div className="flex flex-wrap gap-2">

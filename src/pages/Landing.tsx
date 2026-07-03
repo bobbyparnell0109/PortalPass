@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { GraduationCap, Users, ShieldCheck, Sparkles } from 'lucide-react'
+import { BookOpen, GraduationCap, Users, ShieldCheck, Sparkles } from 'lucide-react'
 import { Card } from '@/components/ui'
 
 const portals = [
@@ -16,6 +16,13 @@ const portals = [
     title: 'Parent Portal',
     desc: "Track your child's progress, attendance and lunch account",
     gradient: 'from-sky-500 to-cyan-400',
+  },
+  {
+    to: '/staff/login',
+    icon: BookOpen,
+    title: 'Teacher Portal',
+    desc: 'Take registers, set homework and enter grades for your classes',
+    gradient: 'from-amber-500 to-orange-500',
   },
   {
     to: '/admin/login',
