@@ -31,6 +31,7 @@ const AdminAnnouncements = lazy(() => import('@/admin/AdminAnnouncements'))
 const TimetableBuilder = lazy(() => import('@/admin/TimetableBuilder'))
 const Staff = lazy(() => import('@/admin/Staff'))
 const SchoolSettings = lazy(() => import('@/admin/SchoolSettings'))
+const SubjectsRooms = lazy(() => import('@/admin/SubjectsRooms'))
 
 function RouteFallback() {
   return (
@@ -111,6 +112,7 @@ export default function App() {
             <Route path="announcements" element={<AdminAnnouncements />} />
             <Route path="timetable" element={<TimetableBuilder />} />
             <Route path="staff" element={<Staff />} />
+            <Route path="subjects-rooms" element={<SubjectsRooms />} />
             <Route path="settings" element={<SchoolSettings />} />
           </Route>
 

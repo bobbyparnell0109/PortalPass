@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
-import { AlertTriangle, Plus, Trash2, X } from 'lucide-react'
-import { Badge, Button, Card } from '@/components/ui'
+import { useMemo, useRef, useState } from 'react'
+import { AlertTriangle, Download, Plus, Trash2, Upload, X } from 'lucide-react'
+import { Badge, Button, Card, Progress as ProgressBar } from '@/components/ui'
+import { parseCsv } from '@/lib/csv'
 import {
   createLesson,
   deleteLesson,
@@ -8,7 +9,9 @@ import {
   fetchRooms,
   fetchStaff,
   fetchSubjects,
+  importTimetable,
   useQuery,
+  type ImportRowResult,
 } from '@/lib/api'
 import { timetable as mockTimetable, staff as mockStaff } from '@/lib/mockData'
 
@@ -20,6 +23,25 @@ const PERIODS = [
   { label: 'P4', start: '13:10', end: '14:10' },
   { label: 'P5', start: '14:15', end: '15:15' },
 ]
+
+// Matches TimeTabler/Edval-style exports: one row per scheduled lesson.
+const TT_TEMPLATE =
+  'class,day,start,end,subject,teacher_email,room,building\n' +
+  '9TB,Mon,08:50,09:50,Maths,okafor@springwood.sch.uk,M12,Main\n' +
+  '9TB,Mon,09:55,10:55,English,reid@springwood.sch.uk,E4,East Wing\n'
+
+const DAY_LOOKUP: Record<string, number> = {
+  mon: 0, monday: 0, '0': 0, '1': 0,
+  tue: 1, tuesday: 1, tues: 1,
+  wed: 2, wednesday: 2,
+  thu: 3, thursday: 3, thurs: 3,
+  fri: 4, friday: 4,
+}
+function parseDay(raw: string): number | null {
+  const key = raw.trim().toLowerCase()
+  if (/^[0-4]$/.test(key)) return Number(key)
+  return DAY_LOOKUP[key] ?? null
+}
 
 export default function TimetableBuilder() {
   const { data: timetable, refetch } = useQuery(fetchLessons, mockTimetable)
@@ -42,6 +64,50 @@ export default function TimetableBuilder() {
   const [roomId, setRoomId] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+
+  // CSV import (the TimeTabler/Edval-style route schools actually use)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [importing, setImporting] = useState(false)
+  const [importProgress, setImportProgress] = useState({ done: 0, total: 0 })
+  const [importResults, setImportResults] = useState<ImportRowResult[] | null>(null)
+  const [importError, setImportError] = useState('')
+
+  const onCsvChosen = async (file: File) => {
+    setImportError('')
+    setImportResults(null)
+    const { rows } = parseCsv(await file.text())
+    const parsedRows = []
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i]
+      const day = parseDay(r.day ?? '')
+      if (day === null || !r.class || !r.subject || !r.teacher_email || !r.start || !r.end || !r.room) {
+        setImportError(`Row ${i + 2}: needs class, day (Mon–Fri), start, end, subject, teacher_email, room`)
+        return
+      }
+      parsedRows.push({
+        classGroup: r.class.toUpperCase(),
+        day,
+        start: r.start,
+        end: r.end,
+        subject: r.subject,
+        teacherEmail: r.teacher_email,
+        room: r.room,
+        building: r.building ?? '',
+      })
+    }
+    if (parsedRows.length === 0) {
+      setImportError('No rows found in that file')
+      return
+    }
+    setImporting(true)
+    setImportProgress({ done: 0, total: parsedRows.length })
+    const results = await importTimetable(parsedRows, (done, total) =>
+      setImportProgress({ done, total }),
+    )
+    setImporting(false)
+    setImportResults(results)
+    refetch()
+  }
 
   const groupLessons = useMemo(
     () => timetable.filter((l) => (l.classGroup ?? '10RW') === group),
@@ -131,14 +197,76 @@ export default function TimetableBuilder() {
             Tap a free slot to schedule a lesson · tap a lesson to inspect or remove it
           </p>
         </div>
-        {clashes.size > 0 ? (
-          <Badge variant="red">
-            <AlertTriangle className="h-3 w-3" /> {clashes.size} clashing lessons
-          </Badge>
-        ) : (
-          <Badge variant="green">No clashes detected</Badge>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {clashes.size > 0 ? (
+            <Badge variant="red">
+              <AlertTriangle className="h-3 w-3" /> {clashes.size} clashing lessons
+            </Badge>
+          ) : (
+            <Badge variant="green">No clashes detected</Badge>
+          )}
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (f) void onCsvChosen(f)
+              e.target.value = ''
+            }}
+          />
+          <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
+            <Upload className="h-4 w-4" /> Import CSV
+          </Button>
+          <a
+            href={`data:text/csv;charset=utf-8,${encodeURIComponent(TT_TEMPLATE)}`}
+            download="portalpass-timetable-template.csv"
+          >
+            <Button variant="ghost" size="sm">
+              <Download className="h-4 w-4" /> Template
+            </Button>
+          </a>
+        </div>
       </header>
+
+      <p className="text-xs text-muted-foreground">
+        Schools typically build the timetable in a solver like TimeTabler or Edval
+        and import the export here — one row per lesson. Unknown subjects and
+        rooms are created automatically; teachers are matched by email.
+      </p>
+
+      {importing && (
+        <Card className="p-5">
+          <h2 className="font-bold">Importing lessons… {importProgress.done} of {importProgress.total}</h2>
+          <ProgressBar value={(importProgress.done / Math.max(1, importProgress.total)) * 100} className="mt-3" />
+        </Card>
+      )}
+      {importError && (
+        <Card className="border-red-300 bg-red-50 p-4 text-sm font-semibold text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
+          {importError}
+        </Card>
+      )}
+      {importResults && (
+        <Card className="animate-fade-up p-5">
+          <h2 className="font-bold">
+            Import finished — {importResults.filter((r) => !r.error).length} lessons added,{' '}
+            {importResults.filter((r) => r.error).length} skipped
+          </h2>
+          {importResults.some((r) => r.error) && (
+            <div className="mt-3 max-h-40 space-y-1 overflow-y-auto text-sm">
+              {importResults.filter((r) => r.error).map((r) => (
+                <div key={r.row} className="rounded-lg bg-amber-50 px-3 py-1.5 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                  Row {r.row}: {r.label} — {r.error}
+                </div>
+              ))}
+            </div>
+          )}
+          <Button variant="ghost" size="sm" className="mt-3" onClick={() => setImportResults(null)}>
+            Dismiss
+          </Button>
+        </Card>
+      )}
 
       {/* Class group tabs */}
       <div className="flex flex-wrap items-center gap-2">

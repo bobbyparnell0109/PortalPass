@@ -13,7 +13,7 @@ import {
 import { Badge, Button, Card } from '@/components/ui'
 import { cn, formatCurrency, greeting } from '@/lib/utils'
 import { useApp } from '@/lib/store'
-import { fetchEvents, fetchLessons, fetchMyStudent, useQuery } from '@/lib/api'
+import { fetchEvents, fetchMyLessons, fetchMyStudent, useQuery } from '@/lib/api'
 import { currentStudent, events as mockEvents, timetable as mockTimetable } from '@/lib/mockData'
 
 function useNow(intervalMs = 30_000) {
@@ -34,7 +34,7 @@ export default function Dashboard() {
   const now = useNow()
   const { homework, unreadMessages } = useApp()
   const { data: me } = useQuery(fetchMyStudent, currentStudent)
-  const { data: timetable } = useQuery(fetchLessons, mockTimetable)
+  const { data: timetable } = useQuery(fetchMyLessons, mockTimetable)
   const { data: events } = useQuery(fetchEvents, mockEvents)
   const g = greeting(now)
 

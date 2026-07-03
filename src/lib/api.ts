@@ -50,24 +50,40 @@ export interface LoginResult {
   name: string
 }
 
-export async function studentPinLogin(pin: string): Promise<LoginResult | null> {
+/** The PIN-derived auth secret set by admin_set_pin (migration 0005). */
+const pinPassword = (email: string, pin: string) => `pp-pin:${pin}:${email.toLowerCase()}`
+
+export async function studentPinLogin(email: string, pin: string): Promise<LoginResult | null> {
+  const target = email.trim().toLowerCase()
   return withFallback(
     async () => {
-      const ok = throwOnError(
-        await supabase.rpc('verify_pin', { user_email: DEMO_STUDENT_EMAIL, pin }),
-      )
-      if (!ok) return null
-      // Demo: PIN unlocks the seeded student session. Production swaps this
-      // for an edge function that mints the session after PIN verification.
-      const { error } = await supabase.auth.signInWithPassword({
-        email: DEMO_STUDENT_EMAIL,
-        password: DEMO_PASSWORD,
+      // Any enrolled student: PIN-derived credential set by admin_set_pin.
+      const attempt = await supabase.auth.signInWithPassword({
+        email: target,
+        password: pinPassword(target, pin),
       })
-      if (error) throw new Error(error.message)
-      const profile = await fetchMyProfile()
-      return { role: 'student', name: profile?.name ?? 'Student' }
+      if (!attempt.error) {
+        const profile = await fetchMyProfile()
+        return { role: 'student', name: profile?.name ?? 'Student' }
+      }
+      // Legacy path for the seeded demo student before migration 0005.
+      if (target === DEMO_STUDENT_EMAIL) {
+        const ok = throwOnError(
+          await supabase.rpc('verify_pin', { user_email: target, pin }),
+        )
+        if (!ok) return null
+        const { error } = await supabase.auth.signInWithPassword({
+          email: target,
+          password: DEMO_PASSWORD,
+        })
+        if (!error) {
+          const profile = await fetchMyProfile()
+          return { role: 'student', name: profile?.name ?? 'Student' }
+        }
+      }
+      return null
     },
-    pin === mock.DEMO_PIN
+    target === DEMO_STUDENT_EMAIL && pin === mock.DEMO_PIN
       ? { role: 'student' as Role, name: `${mock.currentStudent.firstName} ${mock.currentStudent.lastName}` }
       : null,
   )
@@ -876,6 +892,183 @@ export async function deleteLesson(id: string): Promise<WriteResult> {
   } catch (e) {
     return err(e)
   }
+}
+
+export async function createSubject(name: string, color: string): Promise<WriteResult> {
+  try {
+    const schoolId = await mySchoolId()
+    const { error } = await supabase
+      .from('subjects')
+      .insert({ school_id: schoolId, name, color })
+    if (error) throw new Error(error.message)
+    return { ok: true }
+  } catch (e) {
+    return err(e)
+  }
+}
+
+export async function createRoom(name: string, building: string): Promise<WriteResult> {
+  try {
+    const schoolId = await mySchoolId()
+    const { error } = await supabase
+      .from('rooms')
+      .insert({ school_id: schoolId, name, building })
+    if (error) throw new Error(error.message)
+    return { ok: true }
+  } catch (e) {
+    return err(e)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Student's own timetable: lessons for their class group plus any they are
+// individually enrolled in (option blocks). Admin/staff callers see all.
+// ---------------------------------------------------------------------------
+
+export async function fetchMyLessons(): Promise<Lesson[]> {
+  const all = await fetchLessons()
+  return withFallback(async () => {
+    const uid = await currentUserId()
+    if (!uid) return all
+    const rows = throwOnError(
+      await supabase.from('students_overview').select('id, form').limit(10),
+    ) as unknown as { id: string; form: string }[]
+    const me = rows.find((r) => r.id === uid) ?? rows[0]
+    if (!me) return all // staff/admin: whole school
+    const enrolments = throwOnError(
+      await supabase.from('lesson_enrolments').select('lesson_id').eq('student_id', me.id),
+    ) as unknown as { lesson_id: string }[]
+    const enrolled = new Set(enrolments.map((e) => e.lesson_id))
+    const mine = all.filter(
+      (l) => l.classGroup === undefined || l.classGroup === me.form || enrolled.has(l.id),
+    )
+    return mine.length > 0 ? mine : all
+  }, all)
+}
+
+// ---------------------------------------------------------------------------
+// Bulk imports. Sequential on purpose: account sign-ups are rate-limited
+// per IP, and one bad row must not sink the batch. Production scale-path is
+// an edge function using the service-role admin API.
+// ---------------------------------------------------------------------------
+
+export interface ImportRowResult {
+  row: number
+  label: string
+  error?: string
+}
+
+export async function importStudents(
+  rows: {
+    firstName: string
+    lastName: string
+    email: string
+    yearGroup: number
+    form: string
+    house: string
+    pin: string
+  }[],
+  onProgress: (done: number, total: number) => void,
+): Promise<ImportRowResult[]> {
+  const results: ImportRowResult[] = []
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i]
+    const result = await createStudent(r)
+    results.push({
+      row: i + 1,
+      label: `${r.firstName} ${r.lastName} <${r.email}>`,
+      ...(result.ok ? {} : { error: result.error }),
+    })
+    onProgress(i + 1, rows.length)
+    // Stay under the auth sign-up rate limit
+    await new Promise((res) => setTimeout(res, 350))
+  }
+  return results
+}
+
+export async function importTimetable(
+  rows: {
+    classGroup: string
+    day: number
+    start: string
+    end: string
+    subject: string
+    teacherEmail: string
+    room: string
+    building: string
+  }[],
+  onProgress: (done: number, total: number) => void,
+): Promise<ImportRowResult[]> {
+  const results: ImportRowResult[] = []
+  const schoolId = await mySchoolId()
+  const [subjects, rooms, staffList, existing] = await Promise.all([
+    fetchSubjects(),
+    fetchRooms(),
+    fetchStaff(),
+    fetchLessons(),
+  ])
+  const subjectByName = new Map(subjects.map((s) => [s.name.toLowerCase(), s.id]))
+  const roomByName = new Map(rooms.map((r) => [r.name.toLowerCase(), r.id]))
+  const staffByEmail = new Map(staffList.map((t) => [t.email.toLowerCase(), t.id]))
+  const occupied = new Set(existing.map((l) => `${l.classGroup}|${l.day}|${l.start}`))
+  const palette = Object.values(mock.SUBJECT_COLORS)
+
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i]
+    const label = `${r.classGroup} ${['Mon', 'Tue', 'Wed', 'Thu', 'Fri'][r.day] ?? r.day} ${r.start} ${r.subject}`
+    try {
+      if (occupied.has(`${r.classGroup}|${r.day}|${r.start}`)) {
+        throw new Error('slot already has a lesson for this class — skipped')
+      }
+      const teacherId = staffByEmail.get(r.teacherEmail.toLowerCase())
+      if (!teacherId) throw new Error(`no teacher with email ${r.teacherEmail} — add them in Staff first`)
+
+      let subjectId = subjectByName.get(r.subject.toLowerCase())
+      if (!subjectId) {
+        const color = palette[subjectByName.size % palette.length]
+        const ins = throwOnError(
+          await supabase
+            .from('subjects')
+            .insert({ school_id: schoolId, name: r.subject, color })
+            .select('id')
+            .single(),
+        ) as { id: string }
+        subjectId = ins.id
+        subjectByName.set(r.subject.toLowerCase(), subjectId)
+      }
+
+      let roomId = roomByName.get(r.room.toLowerCase())
+      if (!roomId) {
+        const ins = throwOnError(
+          await supabase
+            .from('rooms')
+            .insert({ school_id: schoolId, name: r.room, building: r.building || 'Main' })
+            .select('id')
+            .single(),
+        ) as { id: string }
+        roomId = ins.id
+        roomByName.set(r.room.toLowerCase(), roomId)
+      }
+
+      const { error } = await supabase.from('lessons').insert({
+        school_id: schoolId,
+        subject_id: subjectId,
+        teacher_id: teacherId,
+        room_id: roomId,
+        class_group: r.classGroup,
+        day_of_week: r.day,
+        start_time: r.start,
+        end_time: r.end,
+      })
+      if (error) throw new Error(error.message)
+      occupied.add(`${r.classGroup}|${r.day}|${r.start}`)
+      results.push({ row: i + 1, label })
+    } catch (e) {
+      results.push({ row: i + 1, label, error: e instanceof Error ? e.message : String(e) })
+    }
+    onProgress(i + 1, rows.length)
+  }
+  return results
 }
 
 // ---------------------------------------------------------------------------

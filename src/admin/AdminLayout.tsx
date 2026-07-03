@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
+  BookMarked,
   CalendarRange,
   Contact,
   LayoutDashboard,
@@ -22,6 +23,7 @@ const nav = [
   { to: '/admin/staff', icon: Contact, label: 'Staff' },
   { to: '/admin/attendance', icon: UserRoundCheck, label: 'Attendance' },
   { to: '/admin/timetable', icon: CalendarRange, label: 'Timetable' },
+  { to: '/admin/subjects-rooms', icon: BookMarked, label: 'Subjects & rooms' },
   { to: '/admin/announcements', icon: Megaphone, label: 'Announcements' },
   { to: '/admin/settings', icon: Settings, label: 'School settings' },
 ]

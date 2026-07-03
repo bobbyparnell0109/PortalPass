@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ChevronLeft, ChevronRight, MapPin } from 'lucide-react'
 import { Badge, Button, Card, SegmentedControl } from '@/components/ui'
 import { cn } from '@/lib/utils'
-import { fetchLessons, useQuery } from '@/lib/api'
+import { fetchMyLessons, useQuery } from '@/lib/api'
 import { timetable as mockTimetable } from '@/lib/mockData'
 import type { Lesson } from '@/lib/types'
 
@@ -15,7 +15,7 @@ export default function Timetable() {
   const [weekOffset, setWeekOffset] = useState(0)
   const [view, setView] = useState<'day' | 'week'>('day')
   const [selected, setSelected] = useState<Lesson | null>(null)
-  const { data: timetable } = useQuery(fetchLessons, mockTimetable)
+  const { data: timetable } = useQuery(fetchMyLessons, mockTimetable)
 
   const lessons = timetable
     .filter((l) => l.day === day)
