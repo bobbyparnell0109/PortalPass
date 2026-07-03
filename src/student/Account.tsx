@@ -3,12 +3,14 @@ import { LogOut, Moon, Palette, School, Sun, SunMoon, Type } from 'lucide-react'
 import { ACCENTS, useApp, type FontSize, type ThemeMode } from '@/lib/store'
 import { Button, Card, SegmentedControl } from '@/components/ui'
 import { cn } from '@/lib/utils'
+import { fetchMyStudent, useQuery } from '@/lib/api'
 import { currentStudent } from '@/lib/mockData'
 
 const AVATARS = ['😎', '🦊', '🚀', '🌟', '⚽', '🎨', '🎮', '📚', '🐱', '🦄', '🔥', '🎧']
 
 export default function Account() {
   const { prefs, setPrefs, logout, school } = useApp()
+  const { data: me } = useQuery(fetchMyStudent, currentStudent)
   const navigate = useNavigate()
 
   return (
@@ -19,15 +21,15 @@ export default function Account() {
 
       <Card className="flex items-center gap-4 p-5">
         <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-accent-soft text-4xl">
-          {currentStudent.avatarEmoji}
+          {me.avatarEmoji}
         </div>
         <div>
           <p className="text-lg font-black">
-            {currentStudent.firstName} {currentStudent.lastName}
+            {me.firstName} {me.lastName}
           </p>
           <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <School className="h-3.5 w-3.5" />
-            {school.name} · {currentStudent.form} · {currentStudent.house}
+            {school.name} · {me.form} · {me.house}
           </p>
         </div>
       </Card>
@@ -43,7 +45,7 @@ export default function Account() {
               key={a}
               className={cn(
                 'flex h-11 items-center justify-center rounded-xl text-2xl transition-all hover:scale-110',
-                a === currentStudent.avatarEmoji ? 'bg-accent-soft ring-2 ring-accent' : 'bg-muted',
+                a === me.avatarEmoji ? 'bg-accent-soft ring-2 ring-accent' : 'bg-muted',
               )}
             >
               {a}
