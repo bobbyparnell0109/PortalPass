@@ -24,6 +24,11 @@ export default function ParentDashboard() {
   const { data: homework } = useQuery(fetchHomework, mockHomework)
   const { data: transactions } = useQuery(fetchTransactions, mockTransactions)
   const avg = Math.round(grades.reduce((s, g) => s + g.score, 0) / Math.max(1, grades.length))
+  // Current work first: overdue, then pending by due date, completed last
+  const sortedHomework = [...homework].sort((a, b) => {
+    const rank = (s: string) => (s === 'overdue' ? 0 : s === 'pending' ? 1 : 2)
+    return rank(a.status) - rank(b.status) || a.dueDate.localeCompare(b.dueDate)
+  })
   const pendingHw = homework.filter((h) => h.status !== 'completed').length
   const overdueHw = homework.filter((h) => h.status === 'overdue').length
   const balance = child.lunchBalance
@@ -145,7 +150,7 @@ export default function ParentDashboard() {
       <Card className="p-4">
         <h2 className="mb-3 font-bold">Homework this week</h2>
         <div className="space-y-2">
-          {homework.slice(0, 4).map((h) => (
+          {sortedHomework.slice(0, 5).map((h) => (
             <div key={h.id} className="flex items-center justify-between rounded-xl bg-muted/60 p-3 text-sm">
               <div>
                 <p className="font-semibold">
