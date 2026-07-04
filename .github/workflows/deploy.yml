@@ -8,6 +8,7 @@ on:
     branches:
       - main
       - claude/portalpass-platform-ftxeog
+      - claude/claude-md-continuation-rw20vo
   workflow_dispatch:
 
 permissions:

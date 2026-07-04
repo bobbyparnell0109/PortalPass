@@ -216,8 +216,9 @@ export default function Students() {
             )}
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            Accounts are created one by one to respect sign-up rate limits — a large
-            school import runs at roughly 100–150 students per minute.
+            Imports run through the school server where available — a whole year
+            group lands in seconds. If the server import is unavailable, accounts
+            are created one by one at roughly 100–150 students per minute.
           </p>
         </Card>
       )}

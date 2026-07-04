@@ -1128,18 +1128,63 @@ export interface ImportRowResult {
   error?: string
 }
 
+type StudentImportRow = {
+  firstName: string
+  lastName: string
+  email: string
+  yearGroup: number
+  form: string
+  house: string
+  pin: string
+}
+
+// Server-side path: the bulk-import edge function creates accounts with the
+// service role — no sign-up rate limit, so thousands-scale imports finish in
+// seconds. Rows go up in chunks (the function caps rows per call) both for
+// progress reporting and to stay inside the edge wall-clock limit.
+// Returns null when the function isn't deployed so the caller can fall back.
+const IMPORT_CHUNK = 40
+
+async function importStudentsViaServer(
+  rows: StudentImportRow[],
+  onProgress: (done: number, total: number) => void,
+): Promise<ImportRowResult[] | null> {
+  const results: ImportRowResult[] = []
+  for (let i = 0; i < rows.length; i += IMPORT_CHUNK) {
+    const chunk = rows.slice(i, i + IMPORT_CHUNK)
+    const { data, error } = await supabase.functions.invoke('bulk-import', {
+      body: { students: chunk },
+    })
+    if (error || !Array.isArray(data?.results)) {
+      // First chunk failing means the function is missing/unreachable —
+      // fall back to the client-side path. A mid-import failure is real:
+      // report what succeeded and mark the rest.
+      if (i === 0) return null
+      for (let j = i; j < rows.length; j++) {
+        results.push({
+          row: j + 1,
+          label: `${rows[j].firstName} ${rows[j].lastName} <${rows[j].email}>`,
+          error: 'import interrupted — re-import this row',
+        })
+      }
+      return results
+    }
+    for (const r of data.results as ImportRowResult[]) {
+      results.push({ ...r, row: i + r.row })
+    }
+    onProgress(Math.min(i + chunk.length, rows.length), rows.length)
+  }
+  return results
+}
+
 export async function importStudents(
-  rows: {
-    firstName: string
-    lastName: string
-    email: string
-    yearGroup: number
-    form: string
-    house: string
-    pin: string
-  }[],
+  rows: StudentImportRow[],
   onProgress: (done: number, total: number) => void,
 ): Promise<ImportRowResult[]> {
+  const viaServer = await importStudentsViaServer(rows, onProgress)
+  if (viaServer) return viaServer
+
+  // Fallback: client-side sequential sign-ups (IP rate-limited).
   const results: ImportRowResult[] = []
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i]
