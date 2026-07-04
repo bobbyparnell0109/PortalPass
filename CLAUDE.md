@@ -29,8 +29,9 @@ with balance trigger, PIN resets, archive/restore.
 
 - **Deployed app**: https://bobbyparnell0109.github.io/PortalPass/
 - **Repo**: `bobbyparnell0109/PortalPass`, development branch
-  `claude/portalpass-platform-ftxeog` (default branch `main` is stale —
-  everything is on the claude branch; no PR has been opened)
+  `claude/claude-md-continuation-rw20vo` (continues from
+  `claude/portalpass-platform-ftxeog`; default branch `main` is stale —
+  everything is on the claude branches; no PR has been opened)
 - **Deployment**: push to the claude branch → `.github/workflows/deploy.yml`
   builds with `PORTALPASS_BASE=/PortalPass/` and pushes `dist/` to the
   `gh-pages` branch via peaceiris/actions-gh-pages → GitHub Pages serves it.
@@ -58,7 +59,9 @@ with balance trigger, PIN resets, archive/restore.
 ## Critical workflow: database migrations
 
 `supabase/migrations/0001`–`0006` are ALL APPLIED to the live project.
-`supabase/seed.sql` was applied once (demo school).
+`0007_bulk_import.sql` is committed but NOT YET APPLIED (waiting on the
+owner; needed by the bulk-import edge function). `supabase/seed.sql` was
+applied once (demo school).
 
 **The Supabase MCP server's write tools (`apply_migration`, `execute_sql`)
 usually fail with "requires approval" in remote sessions.** It worked early
@@ -179,10 +182,15 @@ Non-technical; away from keyboard between messages. Proven patterns:
 
 ## Roadmap (agreed priorities, not yet built)
 
-1. **Server-side bulk import** — Supabase edge function with service role
-   (instant thousands-scale import; also removes signUp rate limits).
-   Edge function deploy via MCP is approval-gated; either the owner runs
-   `supabase functions deploy` or paste-deploy via dashboard.
+1. **Server-side bulk import** — BUILT, pending owner deploy. The
+   `bulk-import` edge function (`supabase/functions/bulk-import/index.ts`)
+   creates accounts with the service role; the client
+   (`importStudents` in api.ts) prefers it in 40-row chunks and falls back
+   to the client-side sequential path when it isn't deployed (fallback
+   verified live 2026-07-04). To go live the owner must (a) paste
+   migration 0007 into the SQL editor and (b) paste-deploy the function
+   via dashboard (Edge Functions → Deploy new function → name it exactly
+   `bulk-import`, keep JWT verification on). MCP deploy is approval-gated.
 2. **School-branded invite/welcome emails** (needs custom SMTP — free
    built-in mailer is ~2 emails/hour).
 3. **Self-serve school signup** — "create your school" tenant onboarding so
